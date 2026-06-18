@@ -821,29 +821,32 @@ func (s *Services) autopilotLoop(ctx context.Context, project model.Project, act
 
 func (s *Services) runAutopilotOnce(ctx context.Context, project model.Project, actor string) time.Duration {
 	s.setAutopilotStatus(project.Name, "running")
-	workflow.Report(ctx, "自动调度开始："+project.Name+"。本轮会先确认方向，再拆解任务，然后执行编码；服务日志只用于发现错误，不作为产品方向来源。")
+	workflow.Report(ctx, "开始："+project.Name+"，按 project.md 推进下一项。")
 	cfg, err := s.getProjectConfig(ctx, project.Name)
 	if err != nil || cfg == nil {
 		s.setAutopilotStatus(project.Name, "missing project config")
 		workflow.Report(ctx, "自动调度停止：没有找到 "+project.Name+" 的项目配置。请先发送 /project config。")
 		return 10 * time.Minute
 	}
-	workflow.Report(ctx, fmt.Sprintf("项目配置：workdir=%s doc=%s auto_commit=%t auto_deploy=%t 服务=%s", cfg.Workdir, cfg.DocPath, cfg.AutoCommit, cfg.AutoDeploy, deploymentTargetNames(*cfg)))
+	workflow.Report(ctx, fmt.Sprintf("配置：提交=%t 部署=%t 服务=%s", cfg.AutoCommit, cfg.AutoDeploy, deploymentTargetNames(*cfg)))
 	feedback := s.collectFeedback(ctx, project.Name)
 	logs := s.collectLocalLogs(ctx, *cfg)
+	if strings.TrimSpace(logs) != "" && !strings.Contains(logs, "未发现关键") {
+		workflow.Report(ctx, "日志："+shortChineseSummary(logs, 50))
+	}
 	before := collectProjectGitSnapshot(ctx, cfg.Workdir)
 	if before.Valid && strings.TrimSpace(before.MainStatus) != "" {
 		workflow.Report(ctx, "注意：本轮开始前主工作区已有未提交改动。bot 不会自动 commit，避免混入人工改动。\n"+truncateText(before.MainStatus, 600))
 	}
-	workflow.Report(ctx, "CTO规划：基于 project.md 和 Telegram 反馈确认下一阶段路线；PM2 日志只用于错误检查。")
+	workflow.Report(ctx, "规划：读取文档、反馈和关键错误。")
 	contextText := fmt.Sprintf("Project: %s\nWorkdir: %s\nDoc: %s\nRecent Telegram feedback:\n%s\nRecent local error logs for diagnostics only:\n%s", project.Name, cfg.Workdir, cfg.DocPath, feedback, logs)
 	compactCtx := workflow.WithCompactProgress(ctx)
 	planResult, _ := s.Workflows.Plan(compactCtx, safeAutopilotWorkflowText(contextText)+"\nCTO must produce the near-term roadmap, assumptions, and task breakdown. Treat logs as diagnostics only; do not change product direction based solely on logs.", actor)
 	planSummary := summarizeWorkflowArtifacts(planResult, 3000)
 	if planSummary != "" {
-		workflow.Report(ctx, "本轮规划摘要：\n"+truncateText(planSummary, 700))
+		workflow.Report(ctx, "规划："+shortChineseSummary(planSummary, 50))
 	}
-	workflow.Report(ctx, "任务拆解：开始让 coding agent 根据上面的规划在主项目目录直接修改代码。")
+	workflow.Report(ctx, "编码：按规划修改主项目代码。")
 	buildPrompt := strings.Join([]string{
 		"Project " + project.Name + ": work directly in " + cfg.Workdir + ".",
 		"Read " + cfg.DocPath + " plus existing code.",
@@ -855,7 +858,7 @@ func (s *Services) runAutopilotOnce(ctx context.Context, project model.Project, 
 	}, "\n")
 	buildResult, _ := s.Workflows.Build(compactCtx, buildPrompt, actor)
 	if buildSummary := summarizeWorkflowArtifacts(buildResult, 500); buildSummary != "" {
-		workflow.Report(ctx, "编码结果摘要：\n"+buildSummary)
+		workflow.Report(ctx, "编码："+shortChineseSummary(buildSummary, 50))
 	}
 	after := collectProjectGitSnapshot(ctx, cfg.Workdir)
 	if !before.Valid {
@@ -870,9 +873,9 @@ func (s *Services) runAutopilotOnce(ctx context.Context, project model.Project, 
 	}
 	if !after.MainChangedFrom(before) {
 		if after.ClaudeWorktreeChangedFrom(before) {
-			workflow.Report(ctx, "检测到 Claude 又写入 .claude/worktrees，但主项目目录没有变化。已跳过部署。")
+			workflow.Report(ctx, "Claude 写入临时目录，主项目未变。")
 		} else {
-			workflow.Report(ctx, "本轮没有检测到主项目代码变化，跳过 commit、部署和部署审批。")
+			workflow.Report(ctx, "无代码变化，跳过提交和部署。")
 		}
 		_, _ = s.Workflows.Review(compactCtx, "Project "+project.Name+": no main checkout code change was detected after the latest build attempt. Review why implementation did not modify "+cfg.Workdir+" and identify the next concrete coding task.", actor)
 		s.setAutopilotStatus(project.Name, "idle")
@@ -902,7 +905,7 @@ func (s *Services) runAutopilotOnce(ctx context.Context, project model.Project, 
 		workflow.Report(ctx, "代码尚未 commit。需要自动提交请配置 auto_commit=true；当前保留为工作区改动供你检查。")
 	}
 	if changedThisRun && cfg.AutoDeploy {
-		workflow.Report(ctx, "检测到代码变化且 auto_deploy=true，开始按配置部署服务："+deploymentTargetNames(*cfg))
+		workflow.Report(ctx, "部署："+deploymentTargetNames(*cfg))
 		result, err := s.Deployment.Execute(ctx, *cfg)
 		if err != nil {
 			workflow.Report(ctx, "部署失败："+err.Error())
@@ -914,9 +917,9 @@ func (s *Services) runAutopilotOnce(ctx context.Context, project model.Project, 
 		_ = s.Audit.Log(ctx, audit.Entry{ProjectID: project.ID, Actor: actor, Action: "autopilot.deployment", Target: project.ID, RiskLevel: "high", Metadata: map[string]interface{}{"external_execution": true, "project": project.Name}})
 	} else if changedThisRun && !s.pendingDeployApprovalExists(ctx, project.Name) {
 		_, _ = s.deployCommand(ctx, []string{project.Name, "Autopilot release candidate after code changes"}, actor)
-		workflow.Report(ctx, "检测到代码变化，但 auto_deploy=false；已创建部署审批。发送 /approvals 查看。")
+		workflow.Report(ctx, "已改代码，已创建部署审批。")
 	} else if changedThisRun {
-		workflow.Report(ctx, "已有待处理部署审批，本轮不重复创建。")
+		workflow.Report(ctx, "已有部署审批，不重复创建。")
 	}
 	s.setAutopilotStatus(project.Name, "idle")
 	return 90 * time.Second
@@ -971,13 +974,12 @@ func (s *Services) collectLocalLogs(ctx context.Context, cfg deployment.ProjectC
 			continue
 		}
 		text := extractDiagnosticLogLines(llm.SanitizeText(string(out)))
-		if text == "" {
-			text = "最近日志未发现 error/warn/fail/panic/exception。"
+		if text != "" {
+			chunks = append(chunks, appName+":\n"+text)
 		}
-		chunks = append(chunks, appName+":\n"+text)
 	}
 	if len(chunks) == 0 {
-		return "没有从部署配置中识别到 PM2 服务。"
+		return "未发现关键接口或运行错误。"
 	}
 	return strings.Join(chunks, "\n")
 }
