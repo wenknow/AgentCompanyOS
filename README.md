@@ -1,154 +1,123 @@
-# AgentCompanyOS 项目设计文档 v0.1
+# AgentCompanyOS
 
-## 1. 项目定位
+AgentCompanyOS 是一个面向一人公司和小团队的 AI Agent 控制平面。它通过 Telegram 和 REST API 管理项目、任务、Agent、审批、审计、工作流、自动开发、部署和反馈闭环。
 
-AgentCompanyOS 是一个面向一人公司 / 小团队的公司级 AI Agent 控制平面。
+当前版本已经从早期 Phase 0 设计稿推进到可运行的后端闭环：DeepSeek 负责规划和总结，Claude Code local adapter 负责低风险本地编码任务，Telegram bot 负责项目管理、自动调度、进度汇报、审批和反馈采集。
 
-它不是某个单一业务项目的脚本系统，而是一个可复用的公司操作系统底座。Founder 可以通过 Telegram 指挥多个 Agent，完成产品、研发、运营、内容、增长、社区、BD、合规、财务、项目管理等公司流程。
+## 当前能力
 
-系统核心目标：
+- Telegram Bot：Founder 通过 Telegram 管理项目、任务、审批、部署和 autopilot。
+- Agent 团队：`chief_of_staff`、`product`、`cto`、`backend`、`frontend`、`qa`、`devops`、`content`、`growth`、`sales`、`finance`、`compliance`、`coding`。
+- Runtime Router：普通规划、内容、合规走 DeepSeek；低风险 coding 走 Claude Code local；高风险 coding 进入审批或 fallback。
+- Workflow：支持 `plan`、`build`、`launch`、`review`，产出 task、agent run、artifact、audit log。
+- Project Config：每个项目可配置 workdir、项目文档、自动提交、自动部署和多个部署服务。
+- Autopilot：根据 `project.md`、Telegram 反馈和关键错误日志连续推进开发；遇到 Claude limit 会等待 reset 后继续。
+- 部署闭环：支持多服务部署命令；只有检测到主项目代码变化时才 commit / deploy / 创建部署审批。
+- Approval：高风险动作仍通过审批系统；支持数字编号和 `/reject all` 批量拒绝。
+- 可见性：支持查询 tasks、agent runs、artifacts、runtime tools、approvals。
+- 日志反馈：PM2 日志只保留接口 `4xx/5xx`、`error`、`failed`、`panic`、`timeout` 等关键问题，过滤普通 debug/warning 噪音。
+- 中文汇报：Telegram 汇报使用中文短摘要，重点反馈规划、编码、代码变化、部署和阻塞原因。
 
-1. Founder 通过 Telegram 管理公司级任务。
-2. Agent 可以拆解任务、生成方案、生成 Prompt、生成草案、汇报进度。
-3. 所有高风险动作必须进入审批系统。
-4. 所有动作必须写入审计日志。
-5. 支持多项目、多 Agent、多工具、多审批流。
-6. 第一版只实现规则版 Agent，不接真实外部执行工具。
-7. 后续可接入 LangGraph、Codex、Claude Code、GitHub、Notion、n8n、Langfuse、LiqForge API 等。
-
-一句话定位：
-
-> AgentCompanyOS = Founder Command Center + Agent Registry + Task Manager + Approval System + Tool Gateway + Audit Log。
-
----
-
-## 2. 设计原则
-
-### 2.1 控制优先，不追求完全自动化
-
-Phase 0 的目标不是让 Agent 自动干活，而是建立可控闭环：
-
-Founder 指令 → 解析命令 → 路由 Agent → 创建任务 / 草案 / 报告 → 需要时创建审批 → Founder 审批 → 写审计日志。
-
-### 2.2 高风险动作只生成 Approval，不直接执行
-
-禁止 Phase 0 实现以下动作：
-
-1. 自动发布内容。
-2. 自动部署生产。
-3. 自动 merge 代码。
-4. 自动联系外部 KOL。
-5. 自动操作资金、钱包、交易。
-6. 自动修改风控规则。
-7. 自动连接敏感外部工具。
-
-### 2.3 工具网关先抽象，后执行
-
-Phase 0 只实现 Tool Gateway 接口和权限模型，不接真实 GitHub、Codex、Claude Code、Notion、交易系统。
-
-### 2.4 Agent Runtime 先规则化，后 LangGraph 化
-
-Phase 0 使用规则版 Agent：
-
-* 固定 Agent 角色。
-* 固定指令模板。
-* 固定任务拆解逻辑。
-* 固定报告生成逻辑。
-
-Phase 1 再接入 LangGraph 作为 Agent Runtime。
-
-### 2.5 审计日志是核心基础设施
-
-所有 Telegram 命令、Agent Run、审批动作、任务状态变化都必须写入 audit_logs。
-
----
-
-## 3. 系统边界
-
-### Phase 0 实现范围
-
-必须实现：
-
-1. Telegram Bot。
-2. Gin API 服务。
-3. PostgreSQL 数据库。
-4. Redis 连接。
-5. Agent Registry。
-6. Task Manager。
-7. Approval System。
-8. Project Manager。
-9. Audit Log。
-10. Report Generator。
-11. 规则版 Agent。
-12. Docker Compose。
-13. 数据库 migrations。
-14. README 和 docs。
-15. 基础单元测试。
-
-### Phase 0 不实现
-
-不要实现：
-
-1. 真实 LLM 调用。
-2. 真实 LangGraph 工作流。
-3. 真实 GitHub 操作。
-4. 真实 Codex / Claude Code 操作。
-5. 真实部署系统。
-6. 自动发布 Telegram 群公告。
-7. 自动发 Twitter / X。
-8. 自动 merge 代码。
-9. 钱包私钥保存。
-10. 交易系统接入。
-11. 复杂前端后台。
-
----
-
-## 4. 总体架构
+## 目录结构
 
 ```text
-Founder
-  ↓
-Telegram Bot
-  ↓
-Command Parser
-  ↓
-Command Handler
-  ↓
-Agent Router
-  ↓
-Chief of Staff Agent
-  ↓
-Core Services
-  ├── Agent Registry
-  ├── Task Manager
-  ├── Approval System
-  ├── Project Manager
-  ├── Report Generator
-  ├── Memory Service
-  ├── Tool Gateway
-  └── Audit Service
-  ↓
-PostgreSQL / Redis
+agent-company-os/
+  backend/                 Go 后端服务
+    cmd/api                REST API
+    cmd/bot                Telegram Bot
+    cmd/worker             Worker 入口
+    internal/app           应用服务编排、Telegram 命令、autopilot
+    internal/agents        Agent registry 和 runtime router
+    internal/workflow      plan/build/launch/review workflow
+    internal/deployment    本地部署 adapter
+    internal/approval      审批系统
+    internal/task          task、event、agent run
+    internal/artifact      workflow 和配置产物
+    internal/llm           DeepSeek provider 和 sanitizer
+  docs/                    架构、权限、审批、命令文档
+  infra/docker-compose.yml PostgreSQL / Redis / API 组合配置
+  Makefile                 本地运行、测试、迁移命令
 ```
 
----
+## 快速启动
 
-## 5. 模块设计
+```sh
+cd agent-company-os
+cp .env.example .env
+make docker-up
+curl http://localhost:8080/health
+```
 
-### 5.1 Telegram Bot
+本地运行 API：
 
-职责：
+```sh
+cd agent-company-os
+make run
+```
 
-1. 接收 Founder 命令。
-2. 解析 Telegram 文本。
-3. 调用 Command Handler。
-4. 返回任务、审批、状态、报告等结果。
-5. 将所有命令写入 telegram_messages。
-6. 将所有命令动作写入 audit_logs。
+本地运行 Telegram bot：
 
-Phase 0 建议使用 long polling。后续生产环境可切换 webhook。
+```sh
+cd agent-company-os
+make run-bot
+```
 
-核心命令：
+PM2 运行示例：
+
+```sh
+cd /home/wen/code/AgentCompanyOS/agent-company-os
+pm2 start "make run-bot" --name agent-bot
+```
+
+## 关键环境变量
+
+基础配置：
+
+```env
+DATABASE_URL=postgres://agent:agent@localhost:5432/agent_company_os?sslmode=disable
+REDIS_ADDR=localhost:6379
+TELEGRAM_BOT_TOKEN=
+TELEGRAM_ALLOWED_USER_IDS=
+DEFAULT_PROJECT_NAME=AgentCompanyOS
+```
+
+DeepSeek：
+
+```env
+LLM_PROVIDER=deepseek
+DEEPSEEK_API_KEY=
+DEEPSEEK_BASE_URL=https://api.deepseek.com
+DEEPSEEK_MODEL=deepseek-v4-pro
+DEEPSEEK_REASONING_EFFORT=high
+DEEPSEEK_THINKING=enabled
+LLM_TIMEOUT_SECONDS=180
+```
+
+Claude Code local：
+
+```env
+CODING_RUNTIME=claude_code_local
+CLAUDE_CODE_ENABLED=false
+CLAUDE_CODE_COMMAND=claude
+CLAUDE_CODE_TIMEOUT_SECONDS=900
+CLAUDE_CODE_WORKDIR=..
+CLAUDE_CODE_ALLOWED_ROOT=
+CLAUDE_CODE_MAX_OUTPUT_BYTES=200000
+```
+
+部署：
+
+```env
+DEPLOY_ALLOWED_ROOT=
+DEPLOY_TIMEOUT_SECONDS=600
+DEPLOY_MAX_OUTPUT_BYTES=200000
+```
+
+说明：`CLAUDE_CODE_ENABLED=false` 是默认安全值。只有明确开启后，低风险 coding task 才会调用本机 Claude Code。
+
+## Telegram 命令
+
+常用命令：
 
 ```text
 /start
@@ -156,855 +125,162 @@ Phase 0 建议使用 long polling。后续生产环境可切换 webhook。
 /status
 /agents
 /projects
+/project list
+/project show [项目名或编号]
+/project config [项目名] workdir=/path doc=project.md auto_commit=true auto_deploy=true service=api:pm2 restart api
 /tasks
-/assign [agent] [task]
+/task get [编号]
+/runs [任务编号]
+/artifacts [任务编号]
 /approvals
-/approve [approval_id]
-/reject [approval_id] [reason]
-/daily
-/weekly
+/approve [编号]
+/reject [编号] [原因]
+/reject all [原因]
+/runtime
 ```
 
----
-
-### 5.2 Command Parser
-
-职责：
-
-1. 解析 Telegram 命令。
-2. 提取 command、args、raw_text、chat_id、user_id。
-3. 校验命令格式。
-4. 输出结构化 Command 对象。
-
-Command 对象示例：
-
-```go
-type Command struct {
-    Name    string
-    Args    []string
-    RawText string
-    ChatID  int64
-    UserID  int64
-}
-```
-
----
-
-### 5.3 Agent Registry
-
-职责：
-
-1. 管理 Agent 元数据。
-2. 内置 Phase 0 六个 Agent。
-3. 提供 Agent 查询。
-4. 判断 Agent 是否存在。
-5. 判断 Agent 是否有权限执行某类动作。
-
-Phase 0 内置 Agent：
-
-1. Chief of Staff Agent
-2. Product Agent
-3. CTO Agent
-4. Backend Agent
-5. Content Agent
-6. Compliance Agent
-
-Agent 权限建议：
+Workflow 命令：
 
 ```text
-chief_of_staff:
-  - create_task
-  - assign_task
-  - generate_report
-  - request_approval
-
-product:
-  - create_task
-  - generate_prd
-  - generate_acceptance_criteria
-
-cto:
-  - create_task
-  - generate_technical_plan
-  - generate_risk_review
-
-backend:
-  - create_task
-  - generate_api_design
-  - generate_db_design
-  - generate_code_prompt
-
-content:
-  - generate_content_draft
-  - request_publish_approval
-
-compliance:
-  - review_content
-  - review_risk
-  - request_revision
+/plan [idea]
+/build [task]
+/launch [topic]
+/review [item]
 ```
 
----
-
-### 5.4 Task Manager
-
-职责：
-
-1. 创建任务。
-2. 分配任务给 Agent。
-3. 查询任务列表。
-4. 修改任务状态。
-5. 记录任务事件。
-6. 支持项目维度筛选。
-
-任务状态机：
+Autopilot：
 
 ```text
-created
-→ assigned
-→ planning
-→ executing
-→ waiting_review
-→ revision_required
-→ approved
-→ completed
-→ archived
+/autopilot start [项目]
+/autopilot status [项目]
+/autopilot stop [项目]
+/autopilot run [项目]
 ```
 
-特殊状态：
+反馈采集：
 
 ```text
-blocked
-cancelled
-failed
-needs_founder_approval
-needs_compliance_review
-needs_security_review
+/feedback [项目] [反馈内容]
 ```
 
-Phase 0 简化规则：
-
-1. `/assign [agent] [task]` 直接创建 assigned 状态任务。
-2. 规则版 Agent 同步生成一次 agent_run。
-3. 如果任务文本包含高风险关键词，则创建 approval。
-4. 普通任务不自动完成，只进入 assigned 或 waiting_review。
-
-高风险关键词示例：
+部署：
 
 ```text
-发布
-公告
-上线
-部署
-生产
-merge
-合并
-交易
-钱包
-私钥
-资金
-KOL
-风控
-risk rule
-live trading
-production
-deploy
+/deploy [项目] [原因]
 ```
 
----
+## 项目配置示例
 
-### 5.5 Approval System
-
-职责：
-
-1. 创建审批事项。
-2. 查询审批列表。
-3. Founder approve / reject。
-4. 保存审批原因。
-5. 写入 audit log。
-
-审批类型：
+以 LiqForge 为例：
 
 ```text
-publish_content
-merge_code
-deploy_staging
-deploy_production
-change_risk_rule
-contact_kol
-send_telegram_announcement
-enable_live_trading
-access_sensitive_data
-connect_external_tool
-modify_project_roadmap
+/project config LiqForge workdir=/home/wen/code/liqForge doc=project.md auto_commit=true auto_deploy=true service=liqforge-api:pm2 restart liqforge-api service=liqforge-collector:pm2 restart liqforge-collector service=liqforge-frontend:pm2 restart liqforge-frontend service=liqforge-wallet:pm2 restart liqforge-wallet
 ```
 
-审批状态：
+字段说明：
+
+- `workdir`：项目主目录，Claude 和部署命令都在此目录内执行。
+- `doc`：项目文档路径，通常是 `project.md`。
+- `auto_commit=true`：本轮开始前工作区干净且 Claude 产生主目录代码变化时，自动 `git add -A && git commit`。
+- `auto_deploy=true`：检测到代码变化后，按配置服务执行部署。
+- `service=name:command args...`：声明一个可部署服务，可重复配置多个服务。
+
+安全规则：
+
+- 如果本轮开始前已有未提交改动，bot 不会自动 commit，避免混入人工修改。
+- 如果主项目代码没有变化，bot 不会部署。
+- 如果 Claude 写入 `.claude/worktrees` 而不是主目录，bot 会跳过部署。
+- 如果 Claude 返回 limit/reset，autopilot 会等待 reset 后继续，不会反复发指令浪费额度。
+
+## REST API
+
+主要接口：
 
 ```text
-pending
-approved
-rejected
-revised
-hold
-cancelled
-```
-
-Phase 0 规则：
-
-1. 高风险动作只创建 approval。
-2. `/approve` 只更新 approval 状态，不执行真实外部动作。
-3. `/reject` 只更新 approval 状态和 reason。
-4. 所有审批动作写入 audit_logs。
-
----
-
-### 5.6 Tool Gateway
-
-职责：
-
-1. 统一外部工具抽象。
-2. 管理工具连接状态。
-3. 管理工具权限。
-4. 后续代理 GitHub、Codex、Claude Code、Notion、Telegram Channel、n8n、Langfuse、LiqForge API。
-
-Phase 0 只实现接口和 mock。
-
-接口建议：
-
-```go
-type ToolGateway interface {
-    ListTools(ctx context.Context) ([]ToolConnection, error)
-    GetTool(ctx context.Context, name string) (*ToolConnection, error)
-    Execute(ctx context.Context, req ToolExecutionRequest) (*ToolExecutionResult, error)
-}
-```
-
-Phase 0 的 Execute 永远返回：
-
-```text
-not implemented in phase 0
-```
-
----
-
-### 5.7 LLM Provider
-
-职责：
-
-1. 抽象 LLM 调用。
-2. 后续支持 OpenAI、Claude、本地模型。
-3. Phase 0 不进行真实调用，只实现 NoopProvider。
-
-接口建议：
-
-```go
-type LLMProvider interface {
-    Generate(ctx context.Context, req GenerateRequest) (*GenerateResponse, error)
-}
-```
-
-Phase 0 NoopProvider 返回固定文本。
-
----
-
-### 5.8 Agent Runtime Adapter
-
-职责：
-
-1. 屏蔽规则版 Agent 和 LangGraph Agent 的差异。
-2. Phase 0 使用 RuleBasedRuntime。
-3. Phase 1 接 LangGraphRuntime。
-
-接口建议：
-
-```go
-type AgentRuntime interface {
-    Run(ctx context.Context, input AgentRunInput) (*AgentRunOutput, error)
-}
-```
-
-Phase 0 的 RuleBasedRuntime 根据 agent role 和任务内容生成固定输出。
-
----
-
-### 5.9 Report Generator
-
-职责：
-
-1. 生成日报。
-2. 生成周报。
-3. 汇总任务状态。
-4. 汇总审批状态。
-5. 汇总阻塞项。
-6. 汇总 Agent Run。
-
-日报内容：
-
-```text
-今日任务总数
-新增任务
-进行中任务
-等待审批
-已完成任务
-阻塞任务
-Agent 动作摘要
-风险提醒
-下一步建议
-```
-
-周报内容：
-
-```text
-本周任务概览
-本周完成事项
-本周审批事项
-本周阻塞
-项目进展
-Agent 工作统计
-下周建议
-```
-
----
-
-### 5.10 Audit Log
-
-职责：
-
-1. 记录所有 Founder 命令。
-2. 记录所有 Agent Run。
-3. 记录所有审批动作。
-4. 记录所有任务状态变化。
-5. 记录风险等级。
-
-风险等级：
-
-```text
-low
-medium
-high
-critical
-```
-
-审计日志必须 append-only。Phase 0 不提供删除功能。
-
----
-
-## 6. 数据库设计
-
-推荐统一使用 UUID 主键。
-
-### 6.1 agents
-
-```sql
-CREATE TABLE agents (
-    id UUID PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    role TEXT NOT NULL,
-    description TEXT,
-    permissions JSONB NOT NULL DEFAULT '[]',
-    status TEXT NOT NULL DEFAULT 'active',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 6.2 projects
-
-```sql
-CREATE TABLE projects (
-    id UUID PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    description TEXT,
-    status TEXT NOT NULL DEFAULT 'active',
-    current_phase TEXT NOT NULL DEFAULT 'phase_0',
-    owner TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 6.3 tasks
-
-```sql
-CREATE TABLE tasks (
-    id UUID PRIMARY KEY,
-    project_id UUID REFERENCES projects(id),
-    title TEXT NOT NULL,
-    description TEXT,
-    owner_agent TEXT,
-    priority TEXT NOT NULL DEFAULT 'P2',
-    status TEXT NOT NULL DEFAULT 'assigned',
-    due_date DATE,
-    created_by TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 6.4 task_events
-
-```sql
-CREATE TABLE task_events (
-    id UUID PRIMARY KEY,
-    task_id UUID REFERENCES tasks(id),
-    event_type TEXT NOT NULL,
-    actor TEXT NOT NULL,
-    message TEXT,
-    metadata JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 6.5 approvals
-
-```sql
-CREATE TABLE approvals (
-    id UUID PRIMARY KEY,
-    project_id UUID REFERENCES projects(id),
-    approval_type TEXT NOT NULL,
-    item_type TEXT,
-    item_id UUID,
-    requested_by TEXT,
-    approval_status TEXT NOT NULL DEFAULT 'pending',
-    approved_by TEXT,
-    reason TEXT,
-    risk_level TEXT NOT NULL DEFAULT 'medium',
-    payload JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 6.6 agent_runs
-
-```sql
-CREATE TABLE agent_runs (
-    id UUID PRIMARY KEY,
-    agent_id UUID REFERENCES agents(id),
-    project_id UUID REFERENCES projects(id),
-    task_id UUID REFERENCES tasks(id),
-    input JSONB NOT NULL DEFAULT '{}',
-    output JSONB NOT NULL DEFAULT '{}',
-    tools_used JSONB NOT NULL DEFAULT '[]',
-    status TEXT NOT NULL DEFAULT 'completed',
-    error_message TEXT,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    completed_at TIMESTAMPTZ
-);
-```
-
-### 6.7 audit_logs
-
-```sql
-CREATE TABLE audit_logs (
-    id UUID PRIMARY KEY,
-    project_id UUID REFERENCES projects(id),
-    actor TEXT NOT NULL,
-    action TEXT NOT NULL,
-    target TEXT,
-    risk_level TEXT NOT NULL DEFAULT 'low',
-    metadata JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 6.8 telegram_messages
-
-```sql
-CREATE TABLE telegram_messages (
-    id UUID PRIMARY KEY,
-    chat_id BIGINT NOT NULL,
-    user_id BIGINT,
-    command TEXT,
-    raw_text TEXT NOT NULL,
-    parsed_intent JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 6.9 company_memory
-
-```sql
-CREATE TABLE company_memory (
-    id UUID PRIMARY KEY,
-    project_id UUID REFERENCES projects(id),
-    type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    tags JSONB NOT NULL DEFAULT '[]',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 6.10 tool_connections
-
-```sql
-CREATE TABLE tool_connections (
-    id UUID PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    tool_type TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'disabled',
-    permissions JSONB NOT NULL DEFAULT '[]',
-    config JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-### 6.11 artifacts
-
-建议新增 artifacts 表，用于保存 Agent 生成的草案、开发 Prompt、报告、PRD、技术方案。
-
-```sql
-CREATE TABLE artifacts (
-    id UUID PRIMARY KEY,
-    project_id UUID REFERENCES projects(id),
-    task_id UUID REFERENCES tasks(id),
-    agent_id UUID REFERENCES agents(id),
-    artifact_type TEXT NOT NULL,
-    title TEXT NOT NULL,
-    content TEXT NOT NULL,
-    status TEXT NOT NULL DEFAULT 'draft',
-    metadata JSONB NOT NULL DEFAULT '{}',
-    created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
-);
-```
-
-原因：
-
-1. 任务是工作流对象。
-2. agent_runs 是执行记录。
-3. artifacts 才是可复用产物。
-4. 后续 PRD、技术方案、Prompt、公告草案、周报都应该进入 artifacts。
-
----
-
-## 7. 推荐目录结构
-
-```text
-agent-company-os/
-├── backend/
-│   ├── cmd/
-│   │   ├── api/
-│   │   │   └── main.go
-│   │   ├── bot/
-│   │   │   └── main.go
-│   │   └── worker/
-│   │       └── main.go
-│   ├── internal/
-│   │   ├── app/
-│   │   ├── config/
-│   │   ├── logger/
-│   │   ├── database/
-│   │   ├── redis/
-│   │   ├── api/
-│   │   ├── telegram/
-│   │   ├── command/
-│   │   ├── agents/
-│   │   │   ├── registry/
-│   │   │   ├── runtime/
-│   │   │   └── builtin/
-│   │   ├── task/
-│   │   ├── approval/
-│   │   ├── project/
-│   │   ├── toolgateway/
-│   │   ├── memory/
-│   │   ├── report/
-│   │   ├── llm/
-│   │   ├── artifact/
-│   │   └── audit/
-│   ├── migrations/
-│   ├── tests/
-│   ├── go.mod
-│   └── go.sum
-├── frontend/
-│   └── admin-web/
-├── infra/
-│   └── docker-compose.yml
-├── docs/
-│   ├── architecture.md
-│   ├── agent-roles.md
-│   ├── telegram-commands.md
-│   ├── permission-model.md
-│   ├── approval-flow.md
-│   ├── database-schema.md
-│   ├── roadmap.md
-│   └── phase-0-acceptance.md
-├── .env.example
-├── Makefile
-└── README.md
-```
-
----
-
-## 8. API 设计
-
-Phase 0 REST API 主要用于调试和后续 Admin Web 预留。
-
-### Health
-
-```text
-GET /health
-```
-
-返回：
-
-```json
-{
-  "status": "ok",
-  "service": "agent-company-os"
-}
-```
-
-### Agents
-
-```text
-GET /api/v1/agents
-```
-
-### Projects
-
-```text
-GET /api/v1/projects
+GET  /health
+GET  /api/v1/runtime/status
+GET  /api/v1/runtime/tools
+GET  /api/v1/agents
+GET  /api/v1/projects
 POST /api/v1/projects
-```
-
-### Tasks
-
-```text
-GET /api/v1/tasks
+GET  /api/v1/tasks
 POST /api/v1/tasks
-GET /api/v1/tasks/:id
+GET  /api/v1/tasks/:id
 PATCH /api/v1/tasks/:id/status
-```
-
-### Approvals
-
-```text
-GET /api/v1/approvals
-POST /api/v1/approvals
+GET  /api/v1/approvals
 POST /api/v1/approvals/:id/approve
 POST /api/v1/approvals/:id/reject
+POST /api/v1/workflows/plan
+POST /api/v1/workflows/build
+POST /api/v1/workflows/launch
+POST /api/v1/workflows/review
+GET  /api/v1/agent-runs
+GET  /api/v1/artifacts
+GET  /api/v1/artifacts/:id
+GET  /api/v1/reports/daily
+GET  /api/v1/reports/weekly
 ```
 
-### Reports
+## 安全模型
+
+AgentCompanyOS 默认保守：
+
+- critical sensitive 内容不进入 DeepSeek / Claude。
+- 高风险 coding task 不直接执行 Claude，优先进入审批。
+- 默认不启用 Claude Code，必须显式配置 `CLAUDE_CODE_ENABLED=true`。
+- Claude workdir 必须位于 allowed root 内。
+- 部署命令只能在配置项目目录和 allowed root 内执行。
+- 所有 task、workflow、approval、deployment、agent run 都写入审计或可查询记录。
+
+## Autopilot 工作方式
+
+当前 autopilot 的目标是持续推进项目，而不是固定轮询：
+
+1. 读取项目配置和 `project.md`。
+2. 收集 Telegram 用户反馈。
+3. 收集 PM2 关键错误日志，只保留接口错误和运行异常。
+4. DeepSeek 生成中文短规划。
+5. Claude Code 按规划直接修改项目主目录。
+6. 检查 git 主工作区变化。
+7. 可选自动 commit。
+8. 可选部署多服务。
+9. 遇到 Claude limit/reset 自动等待。
+
+Telegram 只汇报短中文摘要，例如：
 
 ```text
-GET /api/v1/reports/daily
-GET /api/v1/reports/weekly
+规划：补齐前端缺失接口并修复 404。
+编码：新增 positions API 客户端和页面状态处理。
+代码变化：M frontend/app/positions/page.tsx
+部署：liqforge-api, liqforge-frontend
 ```
 
----
+## 开发验证
 
-## 9. Telegram 命令行为
-
-### /start
-
-返回：
-
-```text
-Welcome to AgentCompanyOS.
-You are now connected to Founder Command Bot.
-Use /help to see available commands.
+```sh
+cd agent-company-os
+make test
+make lint
+docker compose -f infra/docker-compose.yml config --quiet
 ```
 
-### /help
+## 当前限制
 
-返回命令说明。
+- Admin Web 尚未实现。
+- GitHub、Notion、n8n、社媒发布、交易、钱包私钥、生产 MCP 集成尚未接入。
+- Autopilot 状态目前保存在进程内，PM2 重启后需要重新 `/autopilot start [项目]`。
+- Claude Code 额度限制由本机 Claude CLI 返回信息判断；如果返回格式变化，等待时间可能退回默认值。
+- 自动部署适合本地 PM2/脚本场景，生产级回滚、灰度、健康检查仍需继续完善。
 
-### /status
+## 最近状态
 
-返回：
+当前后端闭环已经具备：
 
-```text
-AgentCompanyOS Status
-
-Projects: N
-Tasks: N
-Pending Approvals: N
-Active Agents: N
-Blocked Tasks: N
-```
-
-### /agents
-
-返回 6 个内置 Agent。
-
-### /projects
-
-如果没有项目，自动创建默认项目：
-
-```text
-AgentCompanyOS
-```
-
-并返回项目列表。
-
-### /assign [agent] [task]
-
-示例：
-
-```text
-/assign backend 设计任务系统数据库 schema
-```
-
-行为：
-
-1. 校验 agent 是否存在。
-2. 获取默认项目。
-3. 创建 task。
-4. 创建 task_event。
-5. 执行规则版 agent_run。
-6. 如果识别为高风险任务，创建 approval。
-7. 写入 audit_logs。
-8. 返回任务 ID、Agent 输出和是否需要审批。
-
-### /tasks
-
-返回最近 20 个任务。
-
-### /approvals
-
-返回 pending approvals。
-
-### /approve [approval_id]
-
-行为：
-
-1. 更新 approval_status = approved。
-2. 写入 audit_logs。
-3. 返回确认信息。
-4. 不执行真实外部动作。
-
-### /reject [approval_id] [reason]
-
-行为：
-
-1. 更新 approval_status = rejected。
-2. 保存 reason。
-3. 写入 audit_logs。
-4. 返回确认信息。
-
-### /daily
-
-生成日报。
-
-### /weekly
-
-生成周报。
-
----
-
-## 10. 风险识别策略
-
-Phase 0 使用简单关键词策略。
-
-高风险动作识别：
-
-```go
-func DetectRisk(text string) RiskResult {
-    // publish / deploy / merge / trading / wallet / funds / risk rule / KOL 等关键词
-}
-```
-
-风险等级：
-
-```text
-low: 普通任务、文档、计划
-medium: 涉及外部内容草案、产品路线图
-high: 发布、部署、merge、联系外部人
-critical: 资金、钱包、交易、风控规则、生产部署
-```
-
-处理规则：
-
-1. low：正常创建任务。
-2. medium：正常创建任务，可提示注意。
-3. high：创建 task + approval。
-4. critical：创建 task + approval，并标记 needs_founder_approval。
-
----
-
-## 11. Phase 0 验收标准
-
-必须满足：
-
-1. `docker compose up` 可以启动 backend、PostgreSQL、Redis。
-2. API `/health` 返回 ok。
-3. Telegram Bot 可以响应 `/start`。
-4. Telegram Bot 可以响应 `/help`。
-5. `/assign` 可以创建任务。
-6. `/tasks` 可以查看任务。
-7. `/status` 可以查看整体状态。
-8. `/agents` 可以查看 Agent 列表。
-9. `/projects` 可以查看项目列表。
-10. `/approvals` 可以查看审批事项。
-11. `/approve` 可以批准审批。
-12. `/reject` 可以拒绝审批。
-13. `/daily` 可以生成日报。
-14. `/weekly` 可以生成周报。
-15. 所有 Telegram 命令写入 `telegram_messages`。
-16. 所有关键动作写入 `audit_logs`。
-17. 所有 Agent 动作写入 `agent_runs`。
-18. 高风险动作只创建 approval，不直接执行。
-19. README 说明如何配置 Telegram Bot Token。
-20. 有基础单元测试。
-21. 所有外部依赖通过 `.env` 或 `config.yaml` 管理。
-
----
-
-## 12. Phase 1 方向
-
-Phase 1 接入 LangGraph：
-
-1. Chief of Staff 工作流。
-2. 产品 PRD 工作流。
-3. 内容生成 + 合规审查工作流。
-4. 代码任务拆解工作流。
-5. 项目周报工作流。
-
-Phase 1 的核心变化：
-
-```text
-RuleBasedRuntime → LangGraphRuntime
-```
-
-但 Task Manager、Approval System、Audit Log、Tool Gateway 不变。
-
----
-
-## 13. Phase 2 方向
-
-Phase 2 接入真实工具：
-
-1. GitHub：读 Issue、创建 PR、读 diff。
-2. Codex：生成代码、修复 bug、运行测试。
-3. Claude Code：复杂代码任务。
-4. Notion：写文档。
-5. Telegram Channel：待审批后发布公告。
-6. n8n：外部自动化。
-7. Langfuse：LLM 观测。
-8. LiqForge API：业务数据查询。
-
-所有工具必须走 Tool Gateway + Approval System。
-
----
-
-## 14. 核心优化结论
-
-相比原始方案，优化点如下：
-
-1. 增加 artifacts 表，保存 Agent 产物。
-2. 将审批系统设计为一等公民，而不是任务附属功能。
-3. 将风险识别抽成 Risk Policy，避免散落在命令逻辑中。
-4. Phase 0 先使用 long polling，降低 Telegram 本地开发复杂度。
-5. Agent Runtime 明确抽象，Phase 0 规则版，Phase 1 LangGraph。
-6. Tool Gateway Phase 0 只 mock，不接真实工具。
-7. 把 AgentCompanyOS 的核心定义为控制平面，而不是执行平面。
-8. 所有高风险动作只进入 approval，不执行。
-9. 所有动作必须 audit log。
-10. 保留多项目能力，但 Phase 0 默认自动创建一个默认项目，降低使用复杂度。
+- Telegram 项目管理和自动调度。
+- DeepSeek 中文规划和短摘要。
+- Claude Code 本地编码 adapter。
+- 多服务部署配置和 approval 后执行。
+- 代码变化检测、自动 commit、自动部署。
+- PM2 关键错误日志采集。
+- Agent run、artifact、approval、task 可见性。
 
