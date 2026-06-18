@@ -1,0 +1,35 @@
+{
+  "name": "agent-company-codex-kit",
+  "version": "0.1.0",
+  "description": "Company-level Codex plugin kit for engineering standards, risk controls, project workflows, MCP configuration, and AgentCompanyOS development.",
+  "author": {
+    "name": "AgentCompanyOS",
+    "email": "team@example.com"
+  },
+  "license": "MIT",
+  "keywords": [
+    "codex",
+    "agent",
+    "company-os",
+    "golang",
+    "risk-control",
+    "mcp",
+    "workflow"
+  ],
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "AgentCompany Codex Kit",
+    "shortDescription": "Company standards, risk rules, workflows, and MCP config for Codex.",
+    "longDescription": "A reusable Codex plugin kit that packages company engineering standards, Go backend conventions, risk-control policies, approval workflows, AgentCompanyOS development rules, and safe MCP server configuration.",
+    "developerName": "AgentCompanyOS",
+    "category": "Productivity",
+    "capabilities": ["Read", "Write"],
+    "defaultPrompt": [
+      "Use AgentCompany Codex Kit to implement a Go backend feature following company standards.",
+      "Use AgentCompany Codex Kit to review this change for risk, security, and approval requirements.",
+      "Use AgentCompany Codex Kit to develop AgentCompanyOS Phase 0 MVP."
+    ],
+    "brandColor": "#10A37F"
+  }
+}

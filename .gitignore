@@ -1,0 +1,7 @@
+.env
+**/.env
+**/.config/*.ini
+*.conf
+*.yaml
+*.yml
+agent-company-os/.env

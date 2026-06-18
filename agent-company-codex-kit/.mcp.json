@@ -1,0 +1,13 @@
+{
+  "mcpServers": {
+    "filesystem-readonly": {
+      "command": "mcp-server-filesystem",
+      "args": ["--readonly", "."]
+    },
+    "docs": {
+      "command": "docs-mcp",
+      "args": ["--stdio"]
+    }
+  }
+}
+

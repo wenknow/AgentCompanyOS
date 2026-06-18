@@ -1,0 +1,11 @@
+DROP TABLE IF EXISTS artifacts;
+DROP TABLE IF EXISTS tool_connections;
+DROP TABLE IF EXISTS company_memory;
+DROP TABLE IF EXISTS telegram_messages;
+DROP TABLE IF EXISTS audit_logs;
+DROP TABLE IF EXISTS agent_runs;
+DROP TABLE IF EXISTS approvals;
+DROP TABLE IF EXISTS task_events;
+DROP TABLE IF EXISTS tasks;
+DROP TABLE IF EXISTS projects;
+DROP TABLE IF EXISTS agents;
