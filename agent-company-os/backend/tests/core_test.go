@@ -50,8 +50,8 @@ func TestRiskDetector(t *testing.T) {
 
 func TestBuiltinAgents(t *testing.T) {
 	agents := builtin.Agents()
-	if len(agents) != 13 {
-		t.Fatalf("expected 13 agents, got %d", len(agents))
+	if len(agents) != 14 {
+		t.Fatalf("expected 14 agents, got %d", len(agents))
 	}
 	seen := map[string]bool{}
 	for _, a := range agents {
@@ -60,7 +60,7 @@ func TestBuiltinAgents(t *testing.T) {
 			t.Fatalf("agent %s has no permissions", a.Name)
 		}
 	}
-	for _, name := range []string{"chief_of_staff", "product", "cto", "backend", "frontend", "qa", "devops", "content", "growth", "sales", "finance", "compliance", "coding"} {
+	for _, name := range []string{"chief_of_staff", "product", "cto", "backend", "designer", "frontend", "qa", "devops", "content", "growth", "sales", "finance", "compliance", "coding"} {
 		if !seen[name] {
 			t.Fatalf("missing built-in agent %s", name)
 		}

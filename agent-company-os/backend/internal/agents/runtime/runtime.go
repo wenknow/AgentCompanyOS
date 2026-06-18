@@ -82,6 +82,8 @@ func (r *RuleBasedRuntime) Run(ctx context.Context, input AgentRunInput) (*Agent
 	switch input.Agent.Name {
 	case "backend":
 		summary = fmt.Sprintf("Backend plan for %q: define API endpoints, PostgreSQL schema, service/repository boundaries, tests, and a Codex implementation prompt draft. No external code execution is performed.", title)
+	case "designer":
+		summary = fmt.Sprintf("Design direction for %q: remove generic AI-looking UI, define a refined Apple-inspired visual system, clear hierarchy, restrained color, precise spacing, typography, motion, empty/loading/error states, and design QA checks before frontend implementation.", title)
 	case "frontend":
 		summary = fmt.Sprintf("Frontend plan for %q: define user flows, component boundaries, accessibility checks, responsive states, and frontend tests. No external code execution is performed.", title)
 	case "qa":
@@ -471,7 +473,7 @@ func manualPrompt(input AgentRunInput) string {
 }
 
 func systemPrompt(agent model.Agent) string {
-	return strings.Join([]string{
+	lines := []string{
 		"You are " + agent.Role + " in AgentCompanyOS Phase 1.",
 		"Role description: " + agent.Description,
 		"You produce concise internal draft output only.",
@@ -479,7 +481,15 @@ func systemPrompt(agent model.Agent) string {
 		"For high-risk work, describe approval needs and safe next steps only.",
 		"用中文输出。第一句必须是50字以内的结论摘要，后面再给必要要点。",
 		"Return practical, structured text suitable for the Founder to review.",
-	}, "\n")
+	}
+	if agent.Name == "designer" {
+		lines = append(lines,
+			"你是资深产品设计师，审美参考 Apple Human Interface Guidelines 的克制、清晰、精致和空间感，但不要抄袭 Apple 品牌资产。",
+			"输出必须具体到页面布局、信息层级、组件状态、字号层级、间距、颜色策略、动效节奏和前端可执行改造点。",
+			"避免 AI 味：不要大面积渐变、玻璃拟态堆叠、空洞营销文案、无意义卡片、过度圆角和单调紫蓝色主题。",
+		)
+	}
+	return strings.Join(lines, "\n")
 }
 
 func userPrompt(input AgentRunInput) string {

@@ -71,7 +71,7 @@ func NewService(projects project.Repository, agents registry.Repository, tasks t
 }
 
 func (s *Service) Plan(ctx context.Context, idea, actor string) (*Result, error) {
-	return s.run(ctx, "plan", idea, actor, []string{"chief_of_staff", "product", "cto", "backend", "frontend", "qa"}, "product_plan")
+	return s.run(ctx, "plan", idea, actor, []string{"chief_of_staff", "product", "cto", "designer", "frontend", "backend", "qa"}, "product_plan")
 }
 
 func (s *Service) Build(ctx context.Context, title, actor string) (*Result, error) {
@@ -195,6 +195,8 @@ func agentDisplayName(name string) string {
 		return "CTO Agent"
 	case "backend":
 		return "后端 Agent"
+	case "designer":
+		return "设计师 Agent"
 	case "frontend":
 		return "前端 Agent"
 	case "qa":

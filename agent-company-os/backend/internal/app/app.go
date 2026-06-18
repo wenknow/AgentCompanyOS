@@ -841,7 +841,7 @@ func (s *Services) runAutopilotOnce(ctx context.Context, project model.Project, 
 	workflow.Report(ctx, "规划：读取文档、反馈和关键错误。")
 	contextText := fmt.Sprintf("Project: %s\nWorkdir: %s\nDoc: %s\nRecent Telegram feedback:\n%s\nRecent local error logs for diagnostics only:\n%s", project.Name, cfg.Workdir, cfg.DocPath, feedback, logs)
 	compactCtx := workflow.WithCompactProgress(ctx)
-	planResult, _ := s.Workflows.Plan(compactCtx, safeAutopilotWorkflowText(contextText)+"\nCTO must produce the near-term roadmap, assumptions, and task breakdown. Treat logs as diagnostics only; do not change product direction based solely on logs.", actor)
+	planResult, _ := s.Workflows.Plan(compactCtx, safeAutopilotWorkflowText(contextText)+"\nCTO must produce the near-term roadmap, assumptions, and task breakdown. Designer must produce senior UI direction with Apple-inspired restraint, hierarchy, spacing, typography, state design, and concrete frontend tasks to remove generic AI-looking UI. Treat logs as diagnostics only; do not change product direction based solely on logs.", actor)
 	planSummary := summarizeWorkflowArtifacts(planResult, 3000)
 	if planSummary != "" {
 		workflow.Report(ctx, "规划："+shortChineseSummary(planSummary, 50))
@@ -850,8 +850,9 @@ func (s *Services) runAutopilotOnce(ctx context.Context, project model.Project, 
 	buildPrompt := strings.Join([]string{
 		"Project " + project.Name + ": work directly in " + cfg.Workdir + ".",
 		"Read " + cfg.DocPath + " plus existing code.",
-		"Implement the highest-priority concrete code changes from this CTO/product/backend/frontend/QA plan:",
+		"Implement the highest-priority concrete code changes from this CTO/product/designer/frontend/backend/QA plan:",
 		planSummary,
+		"Frontend quality bar: senior product UI, Apple-inspired restraint, clear hierarchy, polished spacing and typography, useful states, responsive behavior, no generic AI-looking gradients/cards unless they serve the product.",
 		"You may modify any file under " + cfg.Workdir + ".",
 		"Do not create .claude/worktrees, background agents, branches, commits, pull requests, or touch files outside that directory.",
 		"If you decide no code change is needed, explain the exact blocker and the exact next implementation task.",
